@@ -56,9 +56,6 @@ public class ChatGptPollGenerator {
             throw new RuntimeException("קיבלתי תשובה ריקה מה-API.");
         }
 
-// ----------------------
-// פירוש JSON חכם יותר
-// ----------------------
         JsonNode root;
         try {
             root = MAPPER.readTree(response);
@@ -73,7 +70,6 @@ public class ChatGptPollGenerator {
             }
         }
 
-// 🔴 חדש: אם יש "extra" שהוא JSON כמחרוזת – לפרש אותו מחדש
         if (root.has("extra") && root.get("extra").isTextual()) {
             String innerJson = root.get("extra").asText();
             try {
@@ -83,7 +79,6 @@ public class ChatGptPollGenerator {
             }
         }
 
-// מכאן והלאה – בדיוק כמו שהיה קודם:
         JsonNode arr = root.path("questions");
         if (!arr.isArray() || arr.size() == 0) {
             arr = root.path("items");

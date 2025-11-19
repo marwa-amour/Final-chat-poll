@@ -5,6 +5,7 @@ import org.example.chatgpt.ChatGptPollGenerator;
 import org.example.chatgpt.ChatGptPollGenerator.GenResult;
 import org.example.core.PollManager;
 import org.example.core.model.Question;
+import org.example.ui.ManualPollForm;
 
 import javax.swing.*;
 import java.awt.*;
@@ -13,27 +14,19 @@ import java.util.List;
 
 public class PollBuilderFrame extends JFrame {
 
-    private SekerClient seker;
-    private ChatGptPollGenerator generator;
     private final PollManager polls;
 
-    // ChatGPT tab
+    private SekerClient seker;
+    private ChatGptPollGenerator generator;
+
     private JTextField idField;
     private JTextField topicField;
     private JTextArea jsonArea;
 
-    // Manual tab
-    private JTextField manualQField;
-    private JTextField manualOpt1;
-    private JTextField manualOpt2;
-    private JTextField manualOpt3;
-    private JTextField manualOpt4;
-    private JTextArea manualSummary;
-
     public PollBuilderFrame(PollManager polls) {
-        seker = new SekerClient();
-        generator = new ChatGptPollGenerator(seker);
         this.polls = polls;
+        this.seker = new SekerClient();
+        this.generator = new ChatGptPollGenerator(seker);
         initUi();
     }
 
@@ -53,7 +46,7 @@ public class PollBuilderFrame extends JFrame {
     private JPanel createChatGptPanel() {
         JPanel p = new JPanel(null);
 
-        JLabel lblId = new JLabel("ID (תעודת זהות / מזהה ל-API):");
+        JLabel lblId = new JLabel("ID (תעודת זהות ל-API):");
         lblId.setBounds(20, 20, 300, 24);
         p.add(lblId);
 
@@ -69,7 +62,7 @@ public class PollBuilderFrame extends JFrame {
         lblTopic.setBounds(20, 80, 350, 24);
         p.add(lblTopic);
 
-        topicField = new JTextField("coffee preferences among students");
+        topicField = new JTextField("");
         topicField.setBounds(20, 105, 840, 24);
         p.add(topicField);
 
@@ -88,56 +81,11 @@ public class PollBuilderFrame extends JFrame {
         p.add(scroll);
 
         btnCheck.addActionListener(e -> onCheckBalance());
-        btnGenerate.addActionListener(e -> onGenerate());
+        btnGenerate.addActionListener(e -> onGenerateChatGpt());
 
         return p;
     }
 
-    private JPanel createManualPanel() {
-        JPanel p = new JPanel(null);
-
-        JLabel lblQ = new JLabel("שאלה:");
-        lblQ.setBounds(20, 20, 300, 24);
-        p.add(lblQ);
-
-        manualQField = new JTextField();
-        manualQField.setBounds(20, 45, 840, 24);
-        p.add(manualQField);
-
-        JLabel lblOpt = new JLabel("אפשרויות (2-4):");
-        lblOpt.setBounds(20, 80, 300, 24);
-        p.add(lblOpt);
-
-        manualOpt1 = new JTextField();
-        manualOpt1.setBounds(20, 105, 400, 24);
-        p.add(manualOpt1);
-
-        manualOpt2 = new JTextField();
-        manualOpt2.setBounds(20, 135, 400, 24);
-        p.add(manualOpt2);
-
-        manualOpt3 = new JTextField();
-        manualOpt3.setBounds(20, 165, 400, 24);
-        p.add(manualOpt3);
-
-        manualOpt4 = new JTextField();
-        manualOpt4.setBounds(20, 195, 400, 24);
-        p.add(manualOpt4);
-
-        JButton btnBuild = new JButton("Build Manual Survey");
-        btnBuild.setBounds(20, 230, 220, 30);
-        p.add(btnBuild);
-
-        manualSummary = new JTextArea();
-        manualSummary.setEditable(false);
-        JScrollPane scroll = new JScrollPane(manualSummary);
-        scroll.setBounds(20, 270, 840, 265);
-        p.add(scroll);
-
-        btnBuild.addActionListener(e -> onBuildManual());
-
-        return p;
-    }
 
     private void onCheckBalance() {
         String id = idField.getText().trim();
@@ -145,16 +93,19 @@ public class PollBuilderFrame extends JFrame {
             JOptionPane.showMessageDialog(this, "מלאי ID קודם.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
+
         try {
             String resp = seker.checkBalance(id);
-            JOptionPane.showMessageDialog(this, "Response:\n" + resp, "Balance", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, resp, "Balance", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception ex) {
-            ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "שגיאה בבקשה:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this,
+                    "שגיאה בבקשה:\n" + ex.getMessage(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    private void onGenerate() {
+    private void onGenerateChatGpt() {
         String id = idField.getText().trim();
         String topic = topicField.getText().trim();
 
@@ -178,65 +129,67 @@ public class PollBuilderFrame extends JFrame {
 
             for (int i = 0; i < qs.size(); i++) {
                 Question q = qs.get(i);
-                sb.append((i + 1));
-                sb.append(". ");
-                sb.append(q.getText());
-                sb.append("\n");
+                sb.append((i + 1)).append(". ").append(q.getText()).append("\n");
+
                 List<String> opts = q.getOptions();
                 for (int k = 0; k < opts.size(); k++) {
-                    sb.append("   ");
-                    sb.append(k + 1);
-                    sb.append(") ");
-                    sb.append(opts.get(k));
-                    sb.append("\n");
+                    sb.append("   ").append(k + 1).append(") ").append(opts.get(k)).append("\n");
                 }
                 sb.append("\n");
             }
-            System.out.println(sb.toString());
 
             jsonArea.setText(sb.toString());
+            System.out.println(sb.toString());
+
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    "נוצרו " + qs.size() + " שאלות.\nלשלוח את הסקר לקהילה?",
+                    "Send Survey",
+                    JOptionPane.YES_NO_OPTION);
+
+            if (choice == JOptionPane.YES_OPTION) {
+                long creatorId = 0L;
+                polls.startPoll(creatorId, qs, 0);
+                JOptionPane.showMessageDialog(this, "הסקר נשלח לבוט!");
+            }
 
         } catch (Exception ex) {
-            ex.printStackTrace();
-            JOptionPane.showMessageDialog(this,
+            JOptionPane.showMessageDialog(
+                    this,
                     "שגיאה ב-ChatGPT / API:\n" + ex.getMessage(),
                     "Error",
                     JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    private void onBuildManual() {
-        String qText = manualQField.getText().trim();
-        if (qText.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "כתבי טקסט לשאלה.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
 
-        List<String> opts = new ArrayList<String>();
-        if (!manualOpt1.getText().trim().isEmpty()) opts.add(manualOpt1.getText().trim());
-        if (!manualOpt2.getText().trim().isEmpty()) opts.add(manualOpt2.getText().trim());
-        if (!manualOpt3.getText().trim().isEmpty()) opts.add(manualOpt3.getText().trim());
-        if (!manualOpt4.getText().trim().isEmpty()) opts.add(manualOpt4.getText().trim());
+    private JPanel createManualPanel() {
+        ManualPollForm form = new ManualPollForm();
 
-        if (opts.size() < 2) {
-            JOptionPane.showMessageDialog(this, "צריך לפחות 2 אפשרויות.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+        form.setCreateListener((questions, delayMinutes) -> {
+            try {
+                long creatorId = 0L;
+                polls.startPoll(creatorId, questions, delayMinutes);
 
-        Question q = new Question(qText, opts);
+                JOptionPane.showMessageDialog(
+                        this,
+                        "הסקר הידני נוצר ונשלח לקהילה.",
+                        "Manual Survey",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "שגיאה ביצירת סקר:\n" + ex.getMessage(),
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE
+                );
+            }
+        });
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("Manual question built:\n");
-        sb.append(q.getText());
-        sb.append("\n");
-        for (int i = 0; i < q.getOptions().size(); i++) {
-            sb.append("   ");
-            sb.append(i + 1);
-            sb.append(") ");
-            sb.append(q.getOptions().get(i));
-            sb.append("\n");
-        }
-
-        manualSummary.setText(sb.toString());
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.add(form, BorderLayout.CENTER);
+        return wrapper;
     }
+
 }

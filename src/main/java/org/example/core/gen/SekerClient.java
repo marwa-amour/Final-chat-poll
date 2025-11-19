@@ -7,17 +7,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 
-/*
- * לקוח פשוט ל-API:
- *   https://app.seker.live/fm1
- *
- * נתיבים:
- *   /check-balance?id=...
- *   /clear-history?id=...
- *   /send-message?id=...&text=...
- *
- * הכל ב-GET, בלי JSON מורכב בצד שלנו.
- */
 public class SekerClient {
 
     private static final String BASE = "https://app.seker.live/fm1";
@@ -65,10 +54,6 @@ public class SekerClient {
         return unwrapExtra(body);
     }
 
-    /*
-     * תשובת השרת מגיעה כ-XML עם TestResponseModel
-     * אנחנו רוצים רק את מה שבתוך <extra>...</extra>.
-     */
     private String unwrapExtra(String body) {
         if (body == null) {
             return null;

@@ -11,7 +11,10 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMa
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 public class MyBot extends TelegramLongPollingBot {
     private final PollManager polls;
@@ -20,14 +23,15 @@ public class MyBot extends TelegramLongPollingBot {
         this.polls = polls;
     }
 
-    // <<< החליפי בשם הבוט שלך >>>
-    @Override public String getBotUsername() { return "Marwa312Bot"; }
-    // <<< הדביקי את הטוקן מה-BotFather >>>
+    @Override
+    public String getBotUsername() {
+        return "Marwa312Bot";
+    }
+
     @Override
     public String getBotToken() {
-        // שימי כאן את הטוקן שלך במקום ה-... ושימי לב שהוא שורה אחת
         String raw = "8090118633:AAGIzvG4yK0lfKMSgGfhr-fxMxsdxmsOe9I";
-        return raw.replaceAll("\\s+", ""); // מוחק כל רווח/שבירת שורה אם נפלו בהעתקה
+        return raw.replaceAll("\\s+", "");
     }
 
     @Override
@@ -41,7 +45,8 @@ public class MyBot extends TelegramLongPollingBot {
                     boolean isNew = polls.addMember(uid);
                     if (isNew) {
                         String name = u.getMessage().getFrom().getFirstName();
-                        send(uid, "Welcome, " + (name!=null?name:"friend") + "! You have joined the community.");
+                        send(uid, "Welcome, " + (name != null ? name : "friend") + "! You have joined the community.");
+
                         broadcastJoin(uid, name);
                     } else {
                         send(uid, "You are already in the community.");
@@ -53,15 +58,15 @@ public class MyBot extends TelegramLongPollingBot {
             }
 
             if (u.hasCallbackQuery()) {
-                var cq   = u.getCallbackQuery();
+                var cq = u.getCallbackQuery();
                 long uid = cq.getFrom().getId();
                 String data = cq.getData();
 
                 try {
-                    String[] p = data.split(":");
-                    long pid = Long.parseLong(p[1]);
-                    int  qi  = Integer.parseInt(p[3]);
-                    int  oi  = Integer.parseInt(p[5]);
+                    String[] parts = data.split(":");
+                    long pid = Long.parseLong(parts[1]);
+                    int qi = Integer.parseInt(parts[3]);
+                    int oi = Integer.parseInt(parts[5]);
 
                     Poll active = polls.getActivePoll();
                     if (active == null || active.closed || active.id != pid) {
@@ -72,12 +77,13 @@ public class MyBot extends TelegramLongPollingBot {
                     boolean ok = polls.submitAnswer(uid, qi, oi);
                     answerCallback(cq.getId(), ok ? "Recorded ✔" : "Already answered.");
 
-                    sendNextQuestionIfAny(uid, active, qi+1);
+                    sendNextQuestionIfAny(uid, active, qi + 1);
 
                 } catch (Exception ex) {
                     answerCallback(cq.getId(), "Invalid response.");
                 }
             }
+
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -90,8 +96,10 @@ public class MyBot extends TelegramLongPollingBot {
 
     private void broadcastJoin(long newUserId, String name) {
         int size = polls.communitySize();
-        String msg = (name!=null?name:"Someone") + " joined. Community size: " + size;
-        for (long id : polls.members()) {
+        String msg = (name != null ? name : "Someone") + " joined. Community size: " + size;
+
+        Set<Long> members = polls.members();
+        for (long id : members) {
             if (id == newUserId) continue;
             send(id, msg);
         }
@@ -105,40 +113,61 @@ public class MyBot extends TelegramLongPollingBot {
 
     private void sendNextQuestionIfAny(long uid, Poll p, int nextQi) {
         if (p.closed) return;
-        if (nextQi < p.questions.size()) sendQuestion(uid, p, nextQi);
-        else send(uid, "Thanks! You finished the survey.");
+        if (nextQi < p.questions.size()) {
+            sendQuestion(uid, p, nextQi);
+        } else {
+            send(uid, "Thanks! You finished the survey.");
+        }
     }
 
     private void sendQuestion(long uid, Poll p, int qi) {
         if (qi >= p.questions.size()) return;
+
         Question q = p.questions.get(qi);
 
-        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-        for (int i=0;i<q.options.size();i++) {
-            InlineKeyboardButton b = new InlineKeyboardButton(q.options.get(i));
-            b.setCallbackData("poll:"+p.id+":q:"+qi+":opt:"+i);
-            rows.add(List.of(b));
-        }
-        InlineKeyboardMarkup kb = new InlineKeyboardMarkup(rows);
+        List<String> opts = q.getOptions();
 
-        SendMessage m = new SendMessage(String.valueOf(uid), "Q"+(qi+1)+": "+q.text);
+        List<List<InlineKeyboardButton>> rows = new ArrayList<List<InlineKeyboardButton>>();
+        for (int i = 0; i < opts.size(); i++) {
+            InlineKeyboardButton b = new InlineKeyboardButton(opts.get(i));
+            b.setCallbackData("poll:" + p.id + ":q:" + qi + ":opt:" + i);
+            List<InlineKeyboardButton> row = new ArrayList<InlineKeyboardButton>();
+            row.add(b);
+            rows.add(row);
+        }
+
+        InlineKeyboardMarkup kb = new InlineKeyboardMarkup();
+        kb.setKeyboard(rows);
+
+        String questionText = "Q" + (qi + 1) + ": " + q.getText();
+        SendMessage m = new SendMessage(String.valueOf(uid), questionText);
         m.setReplyMarkup(kb);
-        try { execute(m); } catch (TelegramApiException e) { e.printStackTrace(); }
+
+        try {
+            execute(m);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
     }
 
     private void send(long chatId, String text) {
-        try { execute(new SendMessage(String.valueOf(chatId), text)); }
-        catch (TelegramApiException e) { e.printStackTrace(); }
-    }
-    public void sendResultsToCreator(PollManager.PollResults res) {
-        send(res.creatorChatId(), res.formatAsText());
+        SendMessage m = new SendMessage(String.valueOf(chatId), text);
+        try {
+            execute(m);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
     }
 
     private void answerCallback(String callbackId, String text) {
         try {
-            AnswerCallbackQuery a = new AnswerCallbackQuery(callbackId);
+            AnswerCallbackQuery a = new AnswerCallbackQuery();
+            a.setCallbackQueryId(callbackId);
             a.setText(text);
             execute(a);
-        } catch (TelegramApiException e) { e.printStackTrace(); }
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
     }
+
 }
